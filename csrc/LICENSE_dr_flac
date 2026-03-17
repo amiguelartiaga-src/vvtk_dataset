@@ -1,0 +1,11 @@
+dr_flac - FLAC audio decoder
+https://github.com/mackron/dr_libs
+
+Author: David Reid (mackron@gmail.com)
+
+Choice of license:
+
+1) Unlicense (public domain) — https://unlicense.org
+2) MIT-0 (MIT No Attribution) — https://opensource.org/license/mit-0
+
+Full license text is embedded at the end of dr_flac.h.

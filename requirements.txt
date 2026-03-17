@@ -1,0 +1,8 @@
+torch>=1.9
+numpy
+
+# Optional: audio compression support
+# soundfile
+
+# Optional: zstd compression support
+# zstd

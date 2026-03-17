@@ -1,0 +1,26 @@
+Third-Party Notices
+===================
+
+This project includes third-party source files in the csrc/ directory.
+Those files remain under their original licenses.
+
+Included components
+-------------------
+
+1. Zstandard decompressor
+   - Files: csrc/zstddeclib.c
+   - Upstream copyright: Meta Platforms, Inc. and affiliates
+   - License used in this project: BSD-style license option from the upstream dual license
+   - License text: csrc/LICENSE_zstd
+
+2. dr_flac
+   - Files: csrc/dr_flac.h, csrc/dr_flac_impl.c
+   - Upstream copyright: David Reid
+   - License used in this project: MIT-0 / public domain option, per upstream choice
+   - License text: csrc/LICENSE_dr_flac
+
+Project license
+---------------
+
+Except for the third-party components listed above, this project is licensed
+under the BSD 3-Clause License. See the top-level LICENSE file.

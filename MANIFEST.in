@@ -1,0 +1,10 @@
+include LICENSE
+include THIRD_PARTY_NOTICES
+include README.md
+include requirements.txt
+include csrc/LICENSE_zstd
+include csrc/LICENSE_dr_flac
+include csrc/zstddeclib.c
+include csrc/dr_flac.h
+include csrc/dr_flac_impl.c
+include csrc/vvtk_lib.cpp
