@@ -119,6 +119,42 @@ for batch in loader:
     pass
 ```
 
+### Mini-epochs with `nb_samples_per_epoch`
+
+When training with large datasets you may want shorter epochs to report
+metrics or save checkpoints more frequently.  `nb_samples_per_epoch` splits
+the full dataset traversal into consecutive mini-epochs.  The data order is
+only reshuffled once **all** samples have been seen.
+
+```python
+from vvtk_dataset import VVTKDataset, VVTKDataLoader
+import torch
+
+# Dataset: 1000 audio samples with token transcriptions
+ds = VVTKDataset('data/audio', mode='rb',
+                 compression=['flac', 'none'],
+                 compression_args=[{'sample_rate': 16000}, {}])
+
+loader = VVTKDataLoader(
+    ds, batch_size=10, num_workers=4,
+    shapes=[(480000,), (400,)],
+    dtypes=[torch.float32, torch.int16],
+    padding_values=[0.0, 0],
+    shuffle=True,
+    nb_samples_per_epoch=100      # 100 samples per mini-epoch (10 batches)
+)
+
+# 1000 samples / 100 per mini-epoch = 10 mini-epochs to see the full dataset.
+# Running 20 epochs goes through the data exactly twice with a reshuffle
+# after mini-epoch 10 (when all 1000 samples have been consumed).
+for epoch in range(20):
+    for batch in loader:
+        (audio, audio_lengths), (tokens, token_lengths) = batch
+        pass  # train step
+    # report metrics / save checkpoint every mini-epoch
+    print(f"mini-epoch {epoch}: done")
+```
+
 ## VVTKDataLoader Parameters
 
 | Parameter | Type | Default | Description |
@@ -131,6 +167,7 @@ for batch in loader:
 | `dtypes` | `list[torch.dtype]` | — | Target dtype per item (required) |
 | `padding_values` | `list[float]` | `[0.0, …]` | Fill value per item |
 | `shuffle` | `bool` | `False` | Shuffle each epoch |
+| `nb_samples_per_epoch` | `int` | `None` | If set, each iteration yields at most this many samples (rounded to full batches). The full dataset is consumed across consecutive mini-epochs and only reshuffled once all samples have been seen. |
 | `drop_last` | `bool` | `False` | Drop incomplete final batch |
 
 > **Note:** The C++ loader always emits full batches. If the dataset size is not
