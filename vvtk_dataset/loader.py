@@ -6,7 +6,8 @@ import time
 
 class VVTKDataLoader:
     def __init__(self, dataset: VVTKBase, batch_size=32, num_workers=4, ring_size=4, 
-                 shapes=None, dtypes=None, padding_values=None, shuffle=False):
+                 shapes=None, dtypes=None, padding_values=None, shuffle=False,
+                 nb_samples_per_epoch=None):
         """
         High-Performance C++ DataLoader with Decompression and Padding.
         
@@ -23,6 +24,10 @@ class VVTKDataLoader:
                                           Example: [torch.float32, torch.int64]
             padding_values (list of float): Padding value for each item.
                                             Example: [0.0, -1.0]
+            nb_samples_per_epoch (int): If set, each iteration yields at most
+                this many samples (rounded down to full batches). The full
+                dataset is consumed across consecutive mini-epochs and only
+                reshuffled once all samples have been seen.
         """
         if not isinstance(dataset, VVTKBase): 
             raise TypeError("VVTKDataLoader requires a VVTKDataset object.")
@@ -117,15 +122,34 @@ class VVTKDataLoader:
         )
         # Always drop the last batch if not full (C++ pads with zeros)
         n_samples = len(dataset)
-        self.length = n_samples // batch_size
+        self._full_length = n_samples // batch_size
+
+        # Mini-epoch support
+        if nb_samples_per_epoch is not None:
+            self._epoch_length = min(nb_samples_per_epoch // batch_size, self._full_length)
+            self._mini_epoch = True
+        else:
+            self._epoch_length = self._full_length
+            self._mini_epoch = False
+        self.length = self._epoch_length
+
+        # Start "exhausted" so the first __iter__ triggers a shuffle/reset
+        self._global_batch_pos = self._full_length
 
     def __iter__(self):
-        self.core.reset()
+        # In mini-epoch mode, only reshuffle when the full dataset has been consumed.
+        # In standard mode, always reshuffle at the start of every epoch.
+        if not self._mini_epoch or self._global_batch_pos >= self._full_length:
+            self.core.reset()
+            self._global_batch_pos = 0
         self.current_idx = 0
         return self
 
     def __next__(self):
-        if self.current_idx >= self.length:
+        if self.current_idx >= self._epoch_length:
+            raise StopIteration
+        # Full dataset exhausted mid-epoch → short final mini-epoch
+        if self._global_batch_pos >= self._full_length:
             raise StopIteration
         
         # Returns List[Tuple(Tensor, Tensor)] -> [(Data, Len), (Data, Len)...]
@@ -135,6 +159,7 @@ class VVTKDataLoader:
             raise StopIteration
             
         self.current_idx += 1
+        self._global_batch_pos += 1
         # Clone tensors so callers can safely accumulate across iterations
         # (the C++ ring buffer may overwrite the underlying memory).
         return [(data.clone(), length.clone()) for data, length in results]
