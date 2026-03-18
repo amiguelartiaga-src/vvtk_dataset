@@ -155,6 +155,32 @@ for epoch in range(20):
     print(f"mini-epoch {epoch}: done")
 ```
 
+### Resuming from a checkpoint with `set_mini_epoch`
+
+For sequential (no-shuffle) training on very large data that is only seen once,
+`set_mini_epoch(n)` repositions the loader at the exact point where a previous
+run left off.  Save the mini-epoch counter in your checkpoint; on resume, call
+`set_mini_epoch` before iterating.
+
+```python
+# -- checkpoint saved at mini-epoch 34 --
+# ckpt = torch.load('checkpoint.pt')
+# model.load_state_dict(ckpt['model'])
+# optimizer.load_state_dict(ckpt['optimizer'])
+
+loader.set_mini_epoch(34)   # fast-forward to mini-epoch 34
+
+for epoch in range(34, total_mini_epochs):
+    for batch in loader:
+        pass  # train step
+    # save checkpoint with current mini-epoch
+```
+
+> **Note:** With `shuffle=False` (sequential data), `set_mini_epoch` produces
+> an order **identical** to an uninterrupted run.  With `shuffle=True`, each
+> internal `reset()` generates a new random permutation, so exact
+> reproducibility requires external seed control.
+
 ## VVTKDataLoader Parameters
 
 | Parameter | Type | Default | Description |

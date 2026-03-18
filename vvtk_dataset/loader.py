@@ -164,5 +164,42 @@ class VVTKDataLoader:
         # (the C++ ring buffer may overwrite the underlying memory).
         return [(data.clone(), length.clone()) for data, length in results]
 
+    def set_mini_epoch(self, mini_epoch):
+        """Position the loader at the start of the given mini-epoch.
+
+        Useful for resuming training from a checkpoint: restore the model
+        and optimiser, then call ``loader.set_mini_epoch(n)`` so the next
+        ``for batch in loader`` continues exactly where training left off.
+
+        The method resets the C++ core and fast-forwards through the
+        required number of batches.  For the **no-shuffle** (sequential)
+        case the resulting data order is identical to an uninterrupted run.
+
+        Note: with ``shuffle=True`` each ``reset()`` generates a new random
+        permutation, so exact reproducibility requires external seed control.
+        """
+        if not self._mini_epoch:
+            raise RuntimeError(
+                "set_mini_epoch() requires nb_samples_per_epoch to be set."
+            )
+
+        total_batches = mini_epoch * self._epoch_length
+        full_passes = total_batches // self._full_length
+        remaining   = total_batches % self._full_length
+
+        # First reset — beginning of pass 0
+        self.core.reset()
+        # Fast-forward through complete passes
+        for _ in range(full_passes):
+            for _ in range(self._full_length):
+                self.core.next()
+            self.core.reset()
+
+        # Fast-forward within the current pass
+        for _ in range(remaining):
+            self.core.next()
+
+        self._global_batch_pos = remaining
+
     def __len__(self):
         return self.length
