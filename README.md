@@ -36,25 +36,6 @@ python tests.py
 ```bash
 pip install soundfile zstd
 ```
-
-### After upgrading PyTorch
-
-The C++ extension must be rebuilt whenever PyTorch is upgraded:
-
-```bash
-python fix.py
-```
-
-This removes stale `.so` files, rebuilds, and verifies the import.
-
-### `GLIBCXX_X.Y.Z not found`
-
-Conda may ship an older `libstdc++` than required. Fix:
-
-```bash
-conda install -c conda-forge libstdcxx-ng>=12
-```
-
 ## Usage
 
 ### Writing a dataset
