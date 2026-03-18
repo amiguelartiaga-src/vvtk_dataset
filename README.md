@@ -209,6 +209,7 @@ csrc/
 | `example23` | Same as 22 with shuffle |
 | `example31` | Synthetic audio + tokens — PyTorch DL vs `VVTKDataLoader` |
 | `example41` | CIFAR-100 compression benchmark — uncompressed vs zstd-compressed VVTK shards |
+| `example51` | Audio mini-epochs — `nb_samples_per_epoch` with PyTorch DL vs `VVTKDataLoader` |
 
 ## Tests
 
