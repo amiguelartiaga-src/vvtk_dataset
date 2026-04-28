@@ -18,7 +18,7 @@ class VVTKDataset(VVTKBase):
     Supports mixed compression modes and automatic padding on read.
     """
     def __init__(self, path, mode='rb', num_shards=32, compression=None, compression_args=None,
-                 fixed_shapes=None, padding_values=None):
+                 fixed_shapes=None, padding_values=None, is_variable=None):
         """
         Args:
             path (str): File path prefix.
@@ -27,8 +27,14 @@ class VVTKDataset(VVTKBase):
             compression (list of str): List of compression modes per item (e.g., ['flac', 'none']).
             compression_args (list of dict): Optional args.
             fixed_shapes (list of tuple): Optional. If set, __getitem__ pads/truncates tensors
-                                          to this shape and returns (tensor, length).
+                                          to this shape and returns (tensor, length) for items
+                                          flagged as variable-length.
             padding_values (list of float): Optional. Values to pad with if fixed_shapes is set.
+            is_variable (list of bool): Optional, one flag per tensor. ``True`` means the
+                tensor has a variable leading dim and should be padded/truncated to
+                ``fixed_shapes[i]`` (returned as ``(tensor, length)``). ``False`` means the
+                tensor is fixed-size and is returned as a plain tensor (no length).
+                Defaults to all ``True`` for backward compatibility.
         """
         super().__init__(path, mode, num_shards)
         
@@ -52,6 +58,14 @@ class VVTKDataset(VVTKBase):
                 self.padding_values = [0.0] * len(self.fixed_shapes)
             if len(self.fixed_shapes) != len(self.compression):
                 raise ValueError("fixed_shapes length must match compression/items length")
+
+        # Per-item variable-length flag (defaults to all True = pre-existing behavior).
+        if is_variable is None:
+            self.is_variable = [True] * len(self.compression)
+        else:
+            if len(is_variable) != len(self.compression):
+                raise ValueError("is_variable length must match compression/items length")
+            self.is_variable = [bool(v) for v in is_variable]
 
         # Validation
         valid_modes = {'none', 'zstd', 'flac'}
@@ -130,8 +144,8 @@ class VVTKDataset(VVTKBase):
         
         results = []
         for i, tensor in enumerate(tensors):
-            # Automatic Padding (Python Side)
-            if self.fixed_shapes is not None:
+            # Automatic Padding (Python Side) — only for variable-length items.
+            if self.fixed_shapes is not None and self.is_variable[i]:
                 target_shape = self.fixed_shapes[i]
                 pad_val = self.padding_values[i]
                 real_len = tensor.shape[0]  # Assuming dim 0 is the variable length
@@ -155,6 +169,12 @@ class VVTKDataset(VVTKBase):
                 
                 results.append((tensor, torch.tensor(real_len, dtype=torch.int64)))
             else:
+                # Fixed-size item (is_variable=False) or no fixed_shapes at all:
+                # return the tensor as-is. When fixed_shapes is set we clone to
+                # ensure owned memory (matches the variable branch); otherwise we
+                # preserve the original zero-copy behaviour.
+                if self.fixed_shapes is not None and comp_modes[i] == 0:
+                    tensor = tensor.clone()
                 results.append(tensor)
         
         return tuple(results)

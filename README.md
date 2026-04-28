@@ -119,6 +119,60 @@ for batch in loader:
     pass
 ```
 
+### Mixing variable-length and fixed-size tensors (`is_variable`)
+
+Samples can mix **variable-length** tensors (padded to a max shape and
+returned with a real length) and **fixed-size** tensors (returned as-is,
+with no length). Use the `is_variable=[...]` flag, available on both
+`VVTKDataset` and `VVTKDataLoader`, to mark which items are which.
+
+Example: a fingerprint-verification sample with **6 tensors** — five
+variable-length per-patch tensors and one scalar class label:
+
+```python
+from vvtk_dataset import VVTKDataset, VVTKDataLoader
+import torch
+
+MAX_N = 16   # max patches per sample
+
+# Writing: each sample has N patches, N varies
+with VVTKDataset('data/fp', mode='wb', num_shards=8,
+                 compression=['none'] * 6) as ds:
+    for i in range(50_000):
+        n = np.random.randint(1, MAX_N + 1)
+        ds.add(i,
+               np.random.randn(n, 96, 96).astype(np.float32),  # x1: patches
+               np.random.randn(n).astype(np.float32),          # x2
+               np.random.randn(n).astype(np.float32),          # x3
+               np.random.randn(n).astype(np.float32),          # x4
+               np.random.randint(0, 10, n, dtype=np.int64),    # x5
+               np.array([i % 100], dtype=np.int64))            # x6: label
+
+# C++ loader — pad x1..x5, return x6 as a plain int64 scalar per sample
+ds = VVTKDataset('data/fp', mode='rb', compression=['none'] * 6)
+
+loader = VVTKDataLoader(
+    ds, batch_size=32, num_workers=4, ring_size=4,
+    shapes=[(MAX_N, 96, 96), (MAX_N,), (MAX_N,), (MAX_N,), (MAX_N,), (1,)],
+    dtypes=[torch.float32, torch.float32, torch.float32, torch.float32,
+            torch.int64,   torch.int64],
+    padding_values=[0.0, 0.0, 0.0, 0.0, -1, 0],
+    is_variable=[True, True, True, True, True, False],   # x6 is fixed
+    shuffle=True,
+)
+
+for batch in loader:
+    (x1, n1), (x2, n2), (x3, n3), (x4, n4), (x5, n5), label = batch
+    # x1: [32, MAX_N, 96, 96] float32, n1: [32] int64 (real patch counts)
+    # label: [32] int64 — no length companion
+    pass
+```
+
+The same `is_variable=[...]` argument also applies to `VVTKDataset` for use
+with the standard `torch.utils.data.DataLoader`.
+
+See `examples/example61_fingerprint_multitensor/` for a runnable notebook.
+
 ### Mini-epochs with `nb_samples_per_epoch`
 
 When training with large datasets you may want shorter epochs to report

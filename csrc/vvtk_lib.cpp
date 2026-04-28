@@ -436,6 +436,9 @@ private:
                     size_t numel = 1;
                     for(int k=0; k<ndim; ++k) numel *= header[2+k];
                     size_t item_bytes = numel * get_dtype_size(code);
+                    // Leading-dim length (matches VVTKDataset.__getitem__'s tensor.shape[0]).
+                    // For 1D tensors this equals numel, so older 1D use-cases are unaffected.
+                    int64_t leading_dim = (ndim > 0) ? header[2] : (int64_t)numel;
                     
                     uint8_t* dst_base = (uint8_t*)buffers_data[item][my_batch_idx].data_ptr();
                     size_t esize = item_element_size[item];
@@ -509,6 +512,8 @@ private:
 
                         numel = frames_read;
                         item_bytes = frames_read * esize;
+                        // FLAC payload is 1D audio: leading dim == frames decoded.
+                        leading_dim = (int64_t)frames_read;
 
                         // Pad remaining elements
                         if (item_bytes < item_bytes_per_sample[item]) {
@@ -533,7 +538,7 @@ private:
                         total_block_size = 64 + item_bytes;
                     }
 
-                    len_ptr[i] = numel;
+                    len_ptr[i] = leading_dim;
 
                     if (total_block_size % 8 != 0) total_block_size += (8 - (total_block_size % 8));
                     curr_ptr += total_block_size;

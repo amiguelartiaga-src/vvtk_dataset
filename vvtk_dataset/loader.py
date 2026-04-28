@@ -7,7 +7,7 @@ import time
 class VVTKDataLoader:
     def __init__(self, dataset: VVTKBase, batch_size=32, num_workers=4, ring_size=4, 
                  shapes=None, dtypes=None, padding_values=None, shuffle=False,
-                 nb_samples_per_epoch=None):
+                 nb_samples_per_epoch=None, is_variable=None):
         """
         High-Performance C++ DataLoader with Decompression and Padding.
         
@@ -24,6 +24,11 @@ class VVTKDataLoader:
                                           Example: [torch.float32, torch.int64]
             padding_values (list of float): Padding value for each item.
                                             Example: [0.0, -1.0]
+            is_variable (list of bool): One flag per item. ``True`` means the
+                tensor has a variable leading dim and is yielded as
+                ``(data, length)``. ``False`` means the tensor is fixed-size
+                (e.g. a scalar class label) and is yielded as a plain tensor.
+                Defaults to all ``True`` for backward compatibility.
             nb_samples_per_epoch (int): If set, each iteration yields at most
                 this many samples (rounded down to full batches). The full
                 dataset is consumed across consecutive mini-epochs and only
@@ -35,6 +40,20 @@ class VVTKDataLoader:
             raise ValueError("shapes and dtypes arguments are required.")
         if len(shapes) != len(dtypes):
             raise ValueError("shapes and dtypes must have the same length.")
+
+        # Per-item variable-length flag (defaults to all True = pre-existing behavior).
+        if is_variable is None:
+            is_variable = [True] * len(shapes)
+        else:
+            if len(is_variable) != len(shapes):
+                raise ValueError("is_variable must have the same length as shapes.")
+            is_variable = [bool(v) for v in is_variable]
+        self.is_variable = is_variable
+        # If a fixed-size item was declared with shape (1,) (a per-sample scalar),
+        # we squeeze the trailing dim so batches come out as [B] instead of [B, 1].
+        self._squeeze_scalar = [
+            (not v) and tuple(shapes[i]) == (1,) for i, v in enumerate(is_variable)
+        ]
 
         # Validate compression modes — only 'none', 'zstd', and 'flac' are
         # supported by the C++ loader.
@@ -162,7 +181,17 @@ class VVTKDataLoader:
         self._global_batch_pos += 1
         # Clone tensors so callers can safely accumulate across iterations
         # (the C++ ring buffer may overwrite the underlying memory).
-        return [(data.clone(), length.clone()) for data, length in results]
+        out = []
+        for i, ((data, length), variable) in enumerate(zip(results, self.is_variable)):
+            if variable:
+                out.append((data.clone(), length.clone()))
+            else:
+                # Fixed-size item: drop the (useless) length tensor.
+                t = data.clone()
+                if self._squeeze_scalar[i]:
+                    t = t.squeeze(-1)
+                out.append(t)
+        return out
 
     def set_mini_epoch(self, mini_epoch):
         """Position the loader at the start of the given mini-epoch.
