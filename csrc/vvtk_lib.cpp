@@ -230,7 +230,14 @@ public:
 
         if (dtypes.size() != num_items || pads.size() != num_items ||
             comp_modes.size() != num_items) {
-            throw std::runtime_error("Mismatch in shapes/dtypes/pads/comp_modes sizes");
+            std::string error_msg = "Mismatch in shapes/dtypes/pads/comp_modes sizes: "
+                "expected all to have size " + std::to_string(num_items) + 
+                " (from shapes), but got: "
+                "shapes=" + std::to_string(shapes.size()) + 
+                ", dtypes=" + std::to_string(dtypes.size()) + 
+                ", pads=" + std::to_string(pads.size()) + 
+                ", comp_modes=" + std::to_string(comp_modes.size());
+            throw std::runtime_error(error_msg);
         }
 
         for (int i = 0; i < num_items; ++i) {
