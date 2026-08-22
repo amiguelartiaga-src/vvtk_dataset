@@ -17,7 +17,7 @@ A high-performance sharded binary dataset library for PyTorch, with a C++ ring-b
 **Requirements:** Python 3.8+, PyTorch 1.9+, C++17 compiler (GCC 7+)
 
 ```bash
-git clone https://github.com/amiguelartiaga-src/vvtk_dataset
+git clone https://github.com/amiguelartiaga-src/vvtk_dataset.git
 cd vvtk_dataset
 pip install -r requirements.txt
 pip install -e . --no-build-isolation
